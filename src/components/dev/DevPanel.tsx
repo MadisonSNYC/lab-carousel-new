@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 
 export interface EffectSettings {
   monitorStyle: boolean;
+  curvedPanels: boolean;
   chromaticAberration: boolean;
   scanLines: boolean;
   screenGlow: boolean;
@@ -23,6 +24,12 @@ export function DevPanel({ effects, onEffectChange, onReset }: DevPanelProps) {
   const [isCollapsed, setIsCollapsed] = useState(false);
 
   const toggleEffect = (effectName: keyof EffectSettings) => {
+    // Guard against unknown keys
+    if (!(effectName in effects)) {
+      console.warn(`[DevPanel] Unknown effect key: ${effectName}`);
+      return;
+    }
+    
     onEffectChange({
       ...effects,
       [effectName]: !effects[effectName]

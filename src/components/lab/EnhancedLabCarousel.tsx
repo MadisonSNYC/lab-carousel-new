@@ -52,7 +52,7 @@ export function EnhancedLabCarousel({ projects, config = {}, onProjectSelect }: 
   const [isUserInteracting, setIsUserInteracting] = useState(false);
   const [isPaused, setIsPaused] = useState(false);
   const [effects, setEffects] = useState<EffectSettings>(defaultEffects);
-  const [showDevPanel, setShowDevPanel] = useState(true);
+  const [showDevPanel, setShowDevPanel] = useState(false);
 
   // Calculate carousel dimensions
   const radius = calculateCarouselRadius(finalConfig.panelWidth, projects.length);
