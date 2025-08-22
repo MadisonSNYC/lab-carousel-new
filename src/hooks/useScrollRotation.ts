@@ -6,10 +6,16 @@ interface UseScrollRotationOptions {
   throttleMs?: number;
 }
 
+// Constants for wheel normalization
+const SENSITIVITY_DEG_PER_PX = 0.04; // Conservative sensitivity
+const LINE_HEIGHT = 16; // Default line height in pixels
+const MAX_DEG_PER_TICK = 2; // Max rotation per frame
+const FRICTION = 0.94; // Stronger damping
+
 export function useScrollRotation(options: UseScrollRotationOptions = {}) {
   const {
-    sensitivity = 0.5, // degrees per pixel scrolled
-    momentumDecay = 0.95, // momentum decay per frame
+    sensitivity = SENSITIVITY_DEG_PER_PX, // degrees per pixel scrolled
+    momentumDecay = FRICTION, // momentum decay per frame
     throttleMs = 16 // ~60fps
   } = options;
 
@@ -43,8 +49,17 @@ export function useScrollRotation(options: UseScrollRotationOptions = {}) {
     const deltaTime = now - lastScrollTime.current;
     lastScrollTime.current = now;
 
-    // Add to velocity for momentum
-    velocityRef.current += event.deltaY * sensitivity;
+    // Normalize wheel delta to pixels
+    let deltaPixels = event.deltaY;
+    if (event.deltaMode === 1) { // DOM_DELTA_LINE
+      deltaPixels = event.deltaY * LINE_HEIGHT;
+    } else if (event.deltaMode === 2) { // DOM_DELTA_PAGE
+      deltaPixels = event.deltaY * window.innerHeight;
+    }
+
+    // Add to velocity for momentum (with clamping)
+    const newVelocity = velocityRef.current + (deltaPixels * sensitivity);
+    velocityRef.current = Math.max(-MAX_DEG_PER_TICK, Math.min(MAX_DEG_PER_TICK, newVelocity));
 
     // Clear existing throttle
     if (throttleTimeout.current) {

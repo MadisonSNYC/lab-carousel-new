@@ -106,6 +106,23 @@ export function EnhancedLabCarousel({ projects, config = {}, onProjectSelect }: 
     if (!container || reducedMotion) return;
 
     const handleWheelEvent = (event: WheelEvent) => {
+      // Check if wheel event is inside a scrollable element
+      const path = event.composedPath ? event.composedPath() : [];
+      for (const element of path) {
+        if (element instanceof HTMLElement) {
+          // Skip if element has data-scroll-allow attribute
+          if (element.hasAttribute('data-scroll-allow')) {
+            return;
+          }
+          // Skip if element is scrollable
+          const style = window.getComputedStyle(element);
+          if ((style.overflowY === 'auto' || style.overflowY === 'scroll') && 
+              element.scrollHeight > element.clientHeight) {
+            return;
+          }
+        }
+      }
+      
       handleScroll(event);
       setIsUserInteracting(true);
       
@@ -119,6 +136,37 @@ export function EnhancedLabCarousel({ projects, config = {}, onProjectSelect }: 
       container.removeEventListener('wheel', handleWheelEvent);
     };
   }, [handleScroll, reducedMotion]);
+
+  // Global dev-only "D" key listener for DevPanel toggle
+  useEffect(() => {
+    // Only in development mode
+    if (import.meta.env?.DEV !== true) return;
+
+    const handleGlobalKeyDown = (event: KeyboardEvent) => {
+      // Ignore if modifier keys are pressed
+      if (event.ctrlKey || event.metaKey || event.altKey) return;
+      
+      // Ignore if typing in an input field
+      const target = event.target as HTMLElement;
+      if (target) {
+        const tagName = target.tagName.toLowerCase();
+        if (tagName === 'input' || tagName === 'textarea' || tagName === 'select') return;
+        if (target.contentEditable === 'true') return;
+        if (target.getAttribute('role') === 'textbox') return;
+      }
+      
+      // Toggle DevPanel on "D" key
+      if (event.key === 'd' || event.key === 'D') {
+        setShowDevPanel(prev => !prev);
+      }
+    };
+
+    window.addEventListener('keydown', handleGlobalKeyDown);
+    
+    return () => {
+      window.removeEventListener('keydown', handleGlobalKeyDown);
+    };
+  }, []); // Empty deps since we use state setter function
 
   // Keyboard navigation
   const handleKeyDown = useCallback((event: React.KeyboardEvent) => {
@@ -209,6 +257,15 @@ export function EnhancedLabCarousel({ projects, config = {}, onProjectSelect }: 
         className="lab-carousel-container relative w-full h-screen overflow-hidden bg-black"
         style={{ marginRight: showDevPanel ? '320px' : '0' }}
         onKeyDown={handleKeyDown}
+        onMouseEnter={() => setIsUserInteracting(true)}
+        onMouseLeave={() => setIsUserInteracting(false)}
+        onFocusCapture={() => setIsUserInteracting(true)}
+        onBlurCapture={(e) => {
+          // Only unpause if focus leaves the carousel entirely
+          if (!e.currentTarget.contains(e.relatedTarget)) {
+            setIsUserInteracting(false);
+          }
+        }}
         tabIndex={0}
         role="region"
         aria-label="3D Project Gallery Carousel"

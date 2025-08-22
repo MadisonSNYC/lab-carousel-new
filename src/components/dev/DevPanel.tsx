@@ -86,6 +86,12 @@ export function DevPanel({ effects, onEffectChange, onReset }: DevPanelProps) {
   return (
     <div 
       className="fixed top-0 right-0 h-full w-80 z-50 bg-gray-900/95 backdrop-blur-sm border-l border-gray-700/50 p-4 overflow-y-auto"
+      style={{
+        maxHeight: '100vh',
+        overscrollBehavior: 'contain',
+        WebkitOverflowScrolling: 'touch'
+      }}
+      data-scroll-allow="true"
       onWheel={(e) => e.stopPropagation()} // Prevent scroll from affecting carousel
     >
       <div className="h-full">
