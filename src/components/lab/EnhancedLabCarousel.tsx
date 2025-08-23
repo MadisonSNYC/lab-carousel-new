@@ -22,37 +22,60 @@ interface EnhancedLabCarouselProps {
     panelCount: 12,
     panelWidth: 120, // Small fixed width like in screenshot
     panelHeight: 200, // Small fixed height maintaining 9:16 ratio
-    perspective: 1200, // Reduced perspective for smaller cards
+    perspective: 1800, // Increased perspective for less foreshortening (was 1200)
     autoRotate: true,
     autoRotateSpeed: 20, // seconds per full rotation
   };
 
+// Detect desktop for chromatic aberration (mobile budget)
+const isDesktop = () => !window.matchMedia('(max-width: 640px)').matches;
+
 const defaultEffects: EffectSettings = {
-  monitorStyle: false,
-  curvedPanels: false,
-  scanLines: false,
-  screenGlow: false,
-  chromaticAberration: false,
-  colorGrading: false,
-  enhancedWireframe: false,
-  atmosphericGrain: false,
-  filmNoise: false,
-  cinematicLighting: false,
-  depthOfField: false
+  monitorStyle: true,           // Screen bezel/edge glow
+  scanLines: true,              // Subtle CRT lines
+  screenGlow: true,             // Screen glow effect (cinematic lighting)
+  chromaticAberration: typeof window !== 'undefined' ? isDesktop() : false, // Desktop only
+  colorGrading: true,           // Cinematic color treatment
+  enhancedWireframe: false,     // Leave false until implemented
+  atmosphericGrain: true,       // Faint film grain
+  filmNoise: true,              // Static noise
+  cinematicLighting: true,      // Soft gradient vignette
+  depthOfField: true,           // DoF-lite angle-based blur
+  ghostBack: true               // Double-sided dim backs
 };
 
 export function EnhancedLabCarousel({ projects, config = {}, onProjectSelect }: EnhancedLabCarouselProps) {
   const finalConfig = { ...defaultConfig, ...config };
   const reducedMotion = useReducedMotion();
+  
+  // Apply PRM overrides to default effects
+  const prmAdjustedEffects = reducedMotion ? {
+    ...defaultEffects,
+    depthOfField: false,  // Force DoF OFF for reduced motion
+    // Keep overlays and ghostBack ON (they're static)
+  } : defaultEffects;
   const carouselRef = useRef<HTMLDivElement>(null);
   const containerRef = useRef<HTMLDivElement>(null);
   const autoRotateRef = useRef<number>();
+  const tileRefs = useRef<(HTMLDivElement | null)[]>([]);
   
   const [activeIndex, setActiveIndex] = useState(0);
   const [isUserInteracting, setIsUserInteracting] = useState(false);
   const [isPaused, setIsPaused] = useState(false);
-  const [effects, setEffects] = useState<EffectSettings>(defaultEffects);
+  const [effects, setEffects] = useState<EffectSettings>(prmAdjustedEffects);
   const [showDevPanel, setShowDevPanel] = useState(false);
+
+  // Dev-only: Clear stale localStorage on first run to ensure new defaults apply
+  useEffect(() => {
+    if (import.meta.env?.DEV) {
+      const storageKey = 'labEffectsV3'; // Versioned key - removed curvedPanels
+      if (!localStorage.getItem(storageKey)) {
+        localStorage.removeItem('labEffects'); // Clear old key if exists
+        localStorage.removeItem('labEffectsV2'); // Clear v2 key with curvedPanels
+        localStorage.setItem(storageKey, 'cleared'); // Mark as cleared
+      }
+    }
+  }, []);
 
   // Calculate carousel dimensions
   const radius = calculateCarouselRadius(finalConfig.panelWidth, projects.length);
@@ -100,29 +123,200 @@ export function EnhancedLabCarousel({ projects, config = {}, onProjectSelect }: 
     setActiveIndex(newActiveIndex);
   }, [rotation, projects.length]);
 
+  // 3D Depth effects updater (tilt/scale/pop + optional DoF)
+  useEffect(() => {
+    if (reducedMotion) {
+      // Clear all effects in reduced motion
+      tileRefs.current.forEach(tile => {
+        if (tile) {
+          tile.style.removeProperty('--d');
+          tile.style.removeProperty('--back');
+          tile.style.removeProperty('--tilt');
+          tile.style.removeProperty('--scale');
+          tile.style.removeProperty('--pop');
+          tile.style.removeProperty('--front-o');
+          tile.style.removeProperty('--ghost-o');
+          tile.style.removeProperty('--bias-scale');
+          tile.style.removeProperty('--bias-tilt-deg');
+        }
+      });
+      if (containerRef.current) {
+        containerRef.current.removeAttribute('data-dof');
+      }
+      return;
+    }
+
+    // Set data attribute for DoF CSS rules (only when DoF effect is on)
+    if (containerRef.current && effects.depthOfField) {
+      containerRef.current.setAttribute('data-dof', 'on');
+    } else if (containerRef.current) {
+      containerRef.current.removeAttribute('data-dof');
+    }
+
+    const update3DEffects = () => {
+      const step = 360 / projects.length;
+      const currentRotation = rotation % 360;
+      let tilesUpdated = 0; // Track workload for performance
+      
+      tileRefs.current.forEach((tile, i) => {
+        if (!tile) return;
+        
+        // Calculate angle difference from front
+        const tileAngle = i * step;
+        let delta = ((tileAngle - currentRotation + 540) % 360) - 180;
+        const absDelta = Math.abs(delta);
+        
+        // Workload sanity: only write vars for tiles near the front wedge (≤120°) or major changes
+        const isNearWedge = absDelta <= 120; // ~6-8 tiles on typical carousels
+        if (!isNearWedge && tilesUpdated >= 8) {
+          return; // Skip distant tiles after updating 8 near-wedge tiles
+        }
+        tilesUpdated++;
+        
+        // Depth calculation for DoF (blur based on angle from front)
+        let depth = 0;
+        if (absDelta < 30) {
+          tile.style.removeProperty('--d');
+        } else {
+          depth = Math.min(absDelta / 90, 1);
+          tile.style.setProperty('--d', depth.toFixed(3));
+        }
+        
+        // Depth-based tilt, scale, and pop for 3D effect
+        const EXISTING_TILT_MAX = 6; // degrees
+        const FRONT_BOOST = 0.03; // +3% for front tiles
+        const SIDE_SHRINK = 0.08; // -8% for side tiles  
+        const POP_Z = 12; // pixels
+        
+        const tilt = -EXISTING_TILT_MAX * depth; // negative = inward lean
+        const scale = 1 + FRONT_BOOST * (1 - depth) - SIDE_SHRINK * depth;
+        const pop = POP_Z * (1 - depth);
+        
+        tile.style.setProperty('--tilt', tilt.toFixed(3));
+        tile.style.setProperty('--scale', scale.toFixed(3));
+        tile.style.setProperty('--pop', pop.toFixed(1));
+        
+        // Clamped front opacity (don't let front wedge disappear)
+        const DOF_SLOPE_DESKTOP = 0.45;
+        const DOF_SLOPE_MOBILE = 0.35;
+        const FRONT_FLOOR_DESKTOP = 0.42;
+        const FRONT_FLOOR_MOBILE = 0.48;
+        
+        const isMobile = window.matchMedia('(max-width: 640px)').matches;
+        const dofSlope = isMobile ? DOF_SLOPE_MOBILE : DOF_SLOPE_DESKTOP;
+        const frontFloor = isMobile ? FRONT_FLOOR_MOBILE : FRONT_FLOOR_DESKTOP;
+        
+        const frontRaw = 1 - depth * dofSlope;
+        const frontClamped = Math.max(frontRaw, frontFloor);
+        tile.style.setProperty('--front-o', frontClamped.toFixed(3));
+        
+        // Per-tile bias (depth-driven size and tilt)
+        const SCALE_FRONT = 0.03;   // +3% at front
+        const SCALE_SIDE = 0.08;    // -8% at side  
+        const BIAS_TILT_MAX = 5;    // deg (inward bow per tile)
+        
+        const biasScale = 1 + SCALE_FRONT * (1 - depth) - SCALE_SIDE * depth;
+        const biasTilt = -BIAS_TILT_MAX * depth;
+        
+        tile.style.setProperty('--bias-scale', biasScale.toFixed(3));
+        tile.style.setProperty('--bias-tilt-deg', biasTilt.toFixed(3));
+        
+        // Back fade calculation for cross-fade (55° to 75° fade window - earlier dimming)
+        const FADE_START = 55;
+        const FADE_END = 75;
+        
+        if (absDelta < FADE_START) {
+          tile.style.removeProperty('--back');
+          tile.style.setProperty('--ghost-o', '0'); // No ghost for front tiles
+        } else if (absDelta >= FADE_END) {
+          tile.style.setProperty('--back', '1');
+          // Full back fade - calculate ghost opacity
+          const GHOST_MAX_DESKTOP = 0.28;
+          const GHOST_MAX_MOBILE = 0.22;
+          const ghostMax = isMobile ? GHOST_MAX_MOBILE : GHOST_MAX_DESKTOP;
+          tile.style.setProperty('--ghost-o', ghostMax.toFixed(3));
+        } else {
+          // Linear interpolation in fade window
+          const backFade = (absDelta - FADE_START) / (FADE_END - FADE_START);
+          tile.style.setProperty('--back', backFade.toFixed(3));
+          
+          // Delayed ghost opacity (only show ghost when truly in rear)
+          const GHOST_GATE = 0.40; // don't show ghost until back >= 0.40
+          const GHOST_MAX_DESKTOP = 0.28;
+          const GHOST_MAX_MOBILE = 0.22;
+          
+          const ghostMax = isMobile ? GHOST_MAX_MOBILE : GHOST_MAX_DESKTOP;
+          const ghostRange = 1 - GHOST_GATE;
+          const ghostPhase = backFade <= GHOST_GATE ? 0 : (backFade - GHOST_GATE) / ghostRange;
+          const ghostOpacity = ghostPhase * ghostMax;
+          
+          tile.style.setProperty('--ghost-o', ghostOpacity.toFixed(3));
+        }
+      });
+    };
+
+    // Run on every rotation change
+    update3DEffects();
+    
+    return () => {
+      // Cleanup
+      tileRefs.current.forEach(tile => {
+        if (tile) {
+          tile.style.removeProperty('--d');
+          tile.style.removeProperty('--back');
+          tile.style.removeProperty('--tilt');
+          tile.style.removeProperty('--scale');
+          tile.style.removeProperty('--pop');
+          tile.style.removeProperty('--front-o');
+          tile.style.removeProperty('--ghost-o');
+          tile.style.removeProperty('--bias-scale');
+          tile.style.removeProperty('--bias-tilt-deg');
+        }
+      });
+      if (containerRef.current) {
+        containerRef.current.removeAttribute('data-dof');
+      }
+    };
+  }, [rotation, projects.length, effects.depthOfField, reducedMotion]);
+
   // Scroll event handling
   useEffect(() => {
     const container = containerRef.current;
     if (!container || reducedMotion) return;
 
-    const handleWheelEvent = (event: WheelEvent) => {
-      // Check if wheel event is inside a scrollable element
-      const path = event.composedPath ? event.composedPath() : [];
-      for (const element of path) {
-        if (element instanceof HTMLElement) {
-          // Skip if element has data-scroll-allow attribute
-          if (element.hasAttribute('data-scroll-allow')) {
-            return;
-          }
-          // Skip if element is scrollable
-          const style = window.getComputedStyle(element);
-          if ((style.overflowY === 'auto' || style.overflowY === 'scroll') && 
-              element.scrollHeight > element.clientHeight) {
-            return;
-          }
-        }
+    // Governance guard helper
+    const isInsideScrollable = (e: WheelEvent): boolean => {
+      const path = e.composedPath?.() ?? [];
+      for (const n of path) {
+        if (!(n instanceof HTMLElement)) continue;
+        if (n.dataset?.scrollAllow) return true;
+        const cs = getComputedStyle(n);
+        const scrollable = /auto|scroll/.test(cs.overflowY) && n.scrollHeight > n.clientHeight;
+        if (scrollable) return true;
       }
+      return false;
+    };
+
+    const handleWheelEvent = (event: WheelEvent) => {
+      // Dev instrumentation - log wheel events
+      if (import.meta.env?.DEV) {
+        const path = event.composedPath?.() ?? [];
+        const hit = path.find(n => n instanceof HTMLElement && (n.dataset?.scrollAllow || getComputedStyle(n).overflowY.match(/auto|scroll/)));
+        console.debug('[wheel]', { 
+          target: event.target, 
+          passive: event.cancelable === false, 
+          prevented: event.defaultPrevented, 
+          deltaMode: event.deltaMode, 
+          deltaY: event.deltaY, 
+          hitScrollable: !!hit 
+        });
+      }
+
+      // Governance guard: native scroll wins in scrollables
+      if (isInsideScrollable(event)) return; // do NOT preventDefault, do NOT rotate
       
+      // Otherwise we are over the carousel → prevent default and rotate
+      event.preventDefault();
       handleScroll(event);
       setIsUserInteracting(true);
       
@@ -255,7 +449,11 @@ export function EnhancedLabCarousel({ projects, config = {}, onProjectSelect }: 
       <div 
         ref={containerRef}
         className="lab-carousel-container relative w-full h-screen overflow-hidden bg-black"
-        style={{ marginRight: showDevPanel ? '320px' : '0' }}
+        style={{ 
+          marginRight: showDevPanel ? '320px' : '0',
+          overscrollBehavior: 'contain',
+          touchAction: 'pan-y pinch-zoom'
+        }}
         onKeyDown={handleKeyDown}
         onMouseEnter={() => setIsUserInteracting(true)}
         onMouseLeave={() => setIsUserInteracting(false)}
@@ -313,29 +511,35 @@ export function EnhancedLabCarousel({ projects, config = {}, onProjectSelect }: 
             }}
             id="carousel-content"
           >
-            {projects.map((project, index) => {
-              // Use CSS variables approach from the other chat
-              const angleDeg = 360 / Math.max(projects.length, 1);
-              const tileVars = {
-                '--tile-index': String(index),
-                '--tile-angle': `${angleDeg}deg`,
-                '--radius': `${radius}px`,
-                '--global-rotation': `${rotation}deg`
-              };
-              
-              return (
-                <EnhancedLabTile
-                  key={project.id}
-                  project={project}
-                  index={index}
-                  isActive={index === activeIndex}
-                  transform="" // Transform handled by CSS variables
-                  effects={effects}
-                  onClick={() => handleProjectSelect(project, index)}
-                  style={tileVars}
-                />
-              );
-            })}
+            <div className="lab-track" style={{ ['--track-tilt-deg' as any]: '-6' }}>
+              {projects.map((project, index) => {
+                // Use CSS variables approach from the other chat
+                const angleDeg = 360 / Math.max(projects.length, 1);
+                const tileVars = {
+                  '--tile-index': String(index),
+                  '--tile-angle': `${angleDeg}deg`,
+                  '--radius': `${radius}px`,
+                  '--global-rotation': `${rotation}deg`
+                };
+                
+                return (
+                  <div
+                    key={project.id}
+                    ref={el => tileRefs.current[index] = el}
+                    style={tileVars}
+                  >
+                    <EnhancedLabTile
+                      project={project}
+                      index={index}
+                      isActive={index === activeIndex}
+                      transform="" // Transform handled by CSS variables
+                      effects={effects}
+                      onClick={() => handleProjectSelect(project, index)}
+                    />
+                  </div>
+                );
+              })}
+            </div>
           </div>
         </div>
 

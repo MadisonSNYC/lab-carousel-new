@@ -5,9 +5,13 @@
  */
 export function calculateCarouselRadius(panelWidth: number, panelCount: number): number {
   if (panelCount < 3) return 400;
-  const r = (panelWidth / 2) / Math.tan(Math.PI / panelCount);
-  // Optimized range for small cards to show multiple panels
-  return Math.max(300, Math.min(800, r * 1.2)); // Moderate radius for good visibility
+  
+  // Target angular width of 14° for better spacing (was 22.6°)
+  const targetAngle = 14 * Math.PI / 180; // 14 degrees in radians
+  const idealRadius = (panelWidth / 2) / Math.tan(targetAngle / 2);
+  
+  // Allow larger radius for decompressed spacing
+  return Math.max(400, Math.min(600, idealRadius)); // Increased range for airy spacing
 }
 
 /**

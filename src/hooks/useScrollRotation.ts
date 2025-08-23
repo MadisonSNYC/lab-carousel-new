@@ -43,7 +43,7 @@ export function useScrollRotation(options: UseScrollRotationOptions = {}) {
   }, [momentumDecay]);
 
   const handleScroll = useCallback((event: WheelEvent) => {
-    event.preventDefault();
+    // Note: preventDefault is now handled by the governance guard in the wrapper
     
     const now = Date.now();
     const deltaTime = now - lastScrollTime.current;

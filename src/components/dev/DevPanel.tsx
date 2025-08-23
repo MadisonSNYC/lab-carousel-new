@@ -2,7 +2,6 @@ import React, { useState } from 'react';
 
 export interface EffectSettings {
   monitorStyle: boolean;
-  curvedPanels: boolean;
   chromaticAberration: boolean;
   scanLines: boolean;
   screenGlow: boolean;
@@ -12,6 +11,7 @@ export interface EffectSettings {
   cinematicLighting: boolean;
   depthOfField: boolean;
   colorGrading: boolean;
+  ghostBack: boolean;
 }
 
 interface DevPanelProps {
@@ -41,7 +41,6 @@ export function DevPanel({ effects, onEffectChange, onReset }: DevPanelProps) {
       title: 'Panel Style', 
       effects: [
         { key: 'monitorStyle', name: 'Monitor/Screen Style', description: 'Transform cards to monitor bezels' },
-        { key: 'curvedPanels', name: 'Curved Panels', description: 'Add 3D curved panel effect' },
         { key: 'scanLines', name: 'Scan Lines', description: 'CRT-style scan line overlay' },
         { key: 'screenGlow', name: 'Screen Glow', description: 'Monitor screen glow effect' }
       ]
@@ -65,7 +64,8 @@ export function DevPanel({ effects, onEffectChange, onReset }: DevPanelProps) {
       title: "Lighting & Depth",
       effects: [
         { key: 'cinematicLighting' as const, label: 'Cinematic Lighting', description: 'Dramatic lighting effects' },
-        { key: 'depthOfField' as const, label: 'Depth of Field', description: 'Focus blur effects' }
+        { key: 'depthOfField' as const, label: 'Depth of Field', description: 'Focus blur effects' },
+        { key: 'ghostBack' as const, label: 'Ghost Back', description: 'Double-sided tiles with dim backside' }
       ]
     }
   ];
@@ -87,7 +87,8 @@ export function DevPanel({ effects, onEffectChange, onReset }: DevPanelProps) {
     <div 
       className="fixed top-0 right-0 h-full w-80 z-50 bg-gray-900/95 backdrop-blur-sm border-l border-gray-700/50 p-4 overflow-y-auto"
       style={{
-        maxHeight: '100vh',
+        maxHeight: '100dvh',
+        overflowY: 'auto',
         overscrollBehavior: 'contain',
         WebkitOverflowScrolling: 'touch'
       }}

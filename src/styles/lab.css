@@ -22,12 +22,43 @@
   transform-style: preserve-3d;
   -webkit-transform-style: preserve-3d;
   
-  /* Prevent backface visibility */
-  -webkit-backface-visibility: hidden;
-  backface-visibility: hidden;
+  /* Double-sided wrapper - must be visible for ghost back */
+  -webkit-backface-visibility: visible;
+  backface-visibility: visible;
   
   /* Smooth transitions */
   transition: transform 0.3s ease-out, box-shadow 0.3s ease-out;
+}
+
+/* Front content should hide when facing away */
+.lab-tile .tile-content {
+  backface-visibility: hidden;
+  -webkit-backface-visibility: hidden;
+  transform-style: preserve-3d;
+  -webkit-transform-style: preserve-3d;
+  transition: transform 0.5s ease-out, filter 0.5s ease-out, opacity 0.5s ease-out;
+}
+
+/* Global cylinder lean */
+.lab-track {
+  transform-style: preserve-3d;
+  /* guaranteed lean; composes with per-tile rotateY because it's on a parent */
+  transform: rotateX(calc(var(--track-tilt-deg, -6) * 1deg));
+}
+
+/* 3D depth transforms for content faces (flat AND curved) */
+.lab-tile :where(.tile-content, .curved-wrap) {
+  transform-origin: center center;
+  transform-style: preserve-3d;
+  -webkit-transform-style: preserve-3d;
+  
+  /* Face transform with bias: per-tile tilt and scale based on depth */
+  transform: 
+    translateZ(var(--pop, 0px))
+    rotateX(calc(var(--bias-tilt-deg, 0) * 1deg))
+    scale(var(--bias-scale, 1));
+  
+  will-change: transform;
 }
 
 .lab-tile:hover {
@@ -174,5 +205,145 @@
 .lab-carousel-container:focus-visible {
   outline: 2px solid #06b6d4;
   outline-offset: 4px;
+}
+
+/* Depth of Field Effect CSS Mapping */
+/* When DoF is enabled, tiles with --d variable get progressive blur and dimming */
+
+/* Desktop blur and opacity values */
+@media (min-width: 641px) {
+  [data-dof="on"] .lab-tile .tile-content {
+    /* Smooth transition for depth changes */
+    transition: filter 0.5s ease-out, opacity 0.5s ease-out, transform 0.3s ease-out;
+  }
+  
+  /* Apply blur and clamped opacity - blur stays, opacity uses clamped front value */
+  [data-dof="on"] .lab-tile[style*="--d"] .tile-content {
+    /* Max blur 4.5px for desktop */
+    filter: blur(calc(var(--d, 0) * 4.5px));
+    /* Use clamped front opacity (prevents disappearing) */
+    opacity: var(--front-o, 1);
+  }
+  
+  /* Ensure front tiles remain sharp and use front opacity */
+  [data-dof="on"] .lab-tile:not([style*="--d"]) .tile-content {
+    filter: blur(0);
+    opacity: var(--front-o, 1);
+  }
+  
+  /* Handle tiles with --back only (no depth blur) */
+  [data-dof="on"] .lab-tile[style*="--back"]:not([style*="--d"]) .tile-content {
+    opacity: var(--front-o, 1);
+  }
+}
+
+/* Mobile blur and opacity values (less aggressive for performance) */
+@media (max-width: 640px) {
+  [data-dof="on"] .lab-tile .tile-content {
+    /* Smooth transition for depth changes */
+    transition: filter 0.5s ease-out, opacity 0.5s ease-out, transform 0.3s ease-out;
+  }
+  
+  /* Apply blur and clamped opacity - mobile version */
+  [data-dof="on"] .lab-tile[style*="--d"] .tile-content {
+    /* Max blur 2px for mobile */
+    filter: blur(calc(var(--d, 0) * 2px));
+    /* Use clamped front opacity (prevents disappearing) */
+    opacity: var(--front-o, 1);
+  }
+  
+  /* Ensure front tiles remain sharp and use front opacity */
+  [data-dof="on"] .lab-tile:not([style*="--d"]) .tile-content {
+    filter: blur(0);
+    opacity: var(--front-o, 1);
+  }
+  
+  /* Handle tiles with --back only (no depth blur) */
+  [data-dof="on"] .lab-tile[style*="--back"]:not([style*="--d"]) .tile-content {
+    opacity: var(--front-o, 1);
+  }
+}
+
+/* Reduced motion: disable blur transitions */
+@media (prefers-reduced-motion: reduce) {
+  [data-dof="on"] .lab-tile .tile-content {
+    transition: none !important;
+    filter: none !important;
+    opacity: 1 !important;
+  }
+}
+
+/* High performance mode fallback - only opacity, no blur */
+@supports not (filter: blur(1px)) {
+  [data-dof="on"] .lab-tile[style*="--d"] .tile-content {
+    filter: none;
+    /* Fallback to opacity only */
+    opacity: calc(1 - (var(--d, 0) * 0.3));
+  }
+}
+
+/* Prevent hover effects on blurred tiles */
+[data-dof="on"] .lab-tile[style*="--d"]:hover {
+  /* Disable scale on hover for back tiles */
+  transform: none;
+}
+
+/* Ghost Back Effect - Double-sided tiles with dim backside */
+/* Creates a pseudo-element that shows when tile faces away */
+
+.lab-tile[data-ghost="on"]::after {
+  content: "";
+  position: absolute;
+  top: 50%; 
+  left: 50%;
+  width: var(--panel-w, 120px);
+  height: var(--panel-h, 200px);
+  transform-style: preserve-3d;
+  -webkit-transform-style: preserve-3d;
+  backface-visibility: hidden;
+  -webkit-backface-visibility: hidden;
+  
+  /* Face the camera when the tile faces away */
+  transform: translate(-50%, -50%) rotateY(180deg) translateZ(0.01px);
+  
+  /* Use the same image as the front, via CSS var */
+  background-image: var(--tile-bg);
+  background-size: cover;
+  background-position: center center;
+  background-repeat: no-repeat;
+  
+  /* "Ghost" look — uses delayed ghost opacity */
+  filter: grayscale(1) blur(calc(1px + var(--back, 0) * 2px)) brightness(0.8);
+  opacity: var(--ghost-o, 0);
+  pointer-events: none;  /* back never intercepts clicks */
+  
+  /* Ensure proper layering */
+  z-index: -1;
+  
+  /* Smooth transitions */
+  transition: opacity 0.3s ease-out;
+}
+
+/* Mobile budget: softer ghost with delayed opacity */
+@media (max-width: 640px) {
+  .lab-tile[data-ghost="on"]::after {
+    filter: grayscale(1) blur(calc(0.8px + var(--back, 0) * 1.5px)) brightness(0.85);
+    opacity: var(--ghost-o, 0);
+  }
+}
+
+/* Reduced motion: disable ghost back transitions */
+@media (prefers-reduced-motion: reduce) {
+  .lab-tile[data-ghost="on"]::after {
+    transition: none !important;
+  }
+}
+
+/* High contrast mode: use delayed ghost opacity */
+@media (prefers-contrast: high) {
+  .lab-tile[data-ghost="on"]::after {
+    opacity: var(--ghost-o, 0);
+    filter: grayscale(1) blur(calc(0.5px + var(--back, 0) * 1px)) brightness(0.9);
+  }
 }
 

@@ -1,0 +1,118 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Depth of Field Effect Test</title>
+    <style>
+        body {
+            font-family: monospace;
+            background: #000;
+            color: #0ff;
+            padding: 20px;
+        }
+        .test-container {
+            max-width: 800px;
+            margin: 0 auto;
+        }
+        .test-tile {
+            display: inline-block;
+            width: 100px;
+            height: 150px;
+            background: linear-gradient(135deg, #06b6d4 0%, #0891b2 100%);
+            margin: 10px;
+            padding: 10px;
+            border-radius: 8px;
+            transition: filter 0.5s ease-out, opacity 0.5s ease-out;
+        }
+        
+        /* Test the CSS rules */
+        [data-dof="on"] .test-tile[style*="--d"] {
+            filter: blur(calc(var(--d, 0) * 4.5px));
+            opacity: calc(1 - (var(--d, 0) * 0.45));
+        }
+        
+        .status {
+            margin: 20px 0;
+            padding: 10px;
+            border: 1px solid #0ff;
+            border-radius: 4px;
+        }
+        
+        .pass { color: #0f0; }
+        .fail { color: #f00; }
+    </style>
+</head>
+<body>
+    <div class="test-container">
+        <h1>🔬 Depth of Field CSS Test</h1>
+        
+        <div class="status">
+            <h2>Test Results:</h2>
+            <div id="test-results"></div>
+        </div>
+        
+        <h2>Visual Test:</h2>
+        <div id="test-area" data-dof="on">
+            <div class="test-tile" style="--d: 0">Sharp (d=0)</div>
+            <div class="test-tile" style="--d: 0.25">Slight (d=0.25)</div>
+            <div class="test-tile" style="--d: 0.5">Medium (d=0.5)</div>
+            <div class="test-tile" style="--d: 0.75">Heavy (d=0.75)</div>
+            <div class="test-tile" style="--d: 1">Max (d=1)</div>
+        </div>
+        
+        <button onclick="toggleDoF()">Toggle DoF Effect</button>
+    </div>
+    
+    <script>
+        function testDoF() {
+            const results = [];
+            const tiles = document.querySelectorAll('.test-tile');
+            
+            // Test 1: Check if CSS variables are accessible
+            tiles.forEach((tile, i) => {
+                const style = getComputedStyle(tile);
+                const dValue = tile.style.getPropertyValue('--d');
+                if (dValue !== null && dValue !== '') {
+                    results.push(`✓ Tile ${i+1}: --d variable set to ${dValue}`);
+                } else {
+                    results.push(`✗ Tile ${i+1}: --d variable not found`);
+                }
+            });
+            
+            // Test 2: Check if blur is applied
+            const blurredTile = tiles[4]; // Max blur tile
+            const computedStyle = getComputedStyle(blurredTile);
+            const filter = computedStyle.filter;
+            if (filter && filter !== 'none') {
+                results.push(`✓ Blur filter applied: ${filter}`);
+            } else {
+                results.push(`✗ Blur filter not applied`);
+            }
+            
+            // Test 3: Check opacity
+            const opacity = parseFloat(computedStyle.opacity);
+            if (opacity < 1) {
+                results.push(`✓ Opacity reduced: ${opacity.toFixed(2)}`);
+            } else {
+                results.push(`✗ Opacity not reduced: ${opacity}`);
+            }
+            
+            // Display results
+            const resultsDiv = document.getElementById('test-results');
+            resultsDiv.innerHTML = results.map(r => 
+                `<div class="${r.startsWith('✓') ? 'pass' : 'fail'}">${r}</div>`
+            ).join('');
+        }
+        
+        function toggleDoF() {
+            const testArea = document.getElementById('test-area');
+            const isOn = testArea.getAttribute('data-dof') === 'on';
+            testArea.setAttribute('data-dof', isOn ? 'off' : 'on');
+            setTimeout(testDoF, 100);
+        }
+        
+        // Run test on load
+        window.addEventListener('DOMContentLoaded', testDoF);
+    </script>
+</body>
+</html>

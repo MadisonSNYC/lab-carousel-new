@@ -11,6 +11,9 @@ interface EnhancedLabTileProps {
   style?: React.CSSProperties;
 }
 
+// Fallback placeholder image (data URL for a simple gradient)
+const PLACEHOLDER_IMAGE = 'data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iNDAwIiBoZWlnaHQ9IjMwMCIgeG1sbnM9Imh0dHA6Ly93d3cudzMub3JnLzIwMDAvc3ZnIj48cmVjdCB3aWR0aD0iNDAwIiBoZWlnaHQ9IjMwMCIgZmlsbD0iIzFhMWExYSIvPjxwYXRoIGQ9Ik0wIDBoNDAwdjMwMEgweiIgZmlsbD0idXJsKCNhKSIgb3BhY2l0eT0iLjMiLz48ZGVmcz48bGluZWFyR3JhZGllbnQgaWQ9ImEiIHgxPSIwJSIgeTE9IjAlIiB4Mj0iMTAwJSIgeTI9IjEwMCUiPjxzdG9wIG9mZnNldD0iMCUiIHN0b3AtY29sb3I9IiMwNmI2ZDQiLz48c3RvcCBvZmZzZXQ9IjEwMCUiIHN0b3AtY29sb3I9IiMwMDAwMDAiLz48L2xpbmVhckdyYWRpZW50PjwvZGVmcz48L3N2Zz4=';
+
 export function EnhancedLabTile({ 
   project, 
   index, 
@@ -22,9 +25,13 @@ export function EnhancedLabTile({
 }: EnhancedLabTileProps) {
   const [imageLoaded, setImageLoaded] = useState(false);
   const [imageError, setImageError] = useState(false);
+  const [imageSrc, setImageSrc] = useState(project.imageUrl);
 
   const handleImageLoad = () => setImageLoaded(true);
-  const handleImageError = () => setImageError(true);
+  const handleImageError = () => {
+    setImageError(true);
+    setImageSrc(PLACEHOLDER_IMAGE);
+  };
 
   const handleClick = () => {
     if (onClick) {
@@ -43,8 +50,6 @@ export function EnhancedLabTile({
   const tileClasses = [
     'lab-tile absolute cursor-pointer transition-all duration-300 ease-out',
     'w-30 h-50', // Small fixed size (120px x 200px)
-    effects.curvedPanels ? 'curved' : '',
-    effects.monitorStyle && effects.curvedPanels ? 'monitor-curved' : '',
     isActive ? 'lab-tile--active' : '',
     effects.screenGlow ? 'screen-glow' : ''
   ].filter(Boolean).join(' ');
@@ -71,8 +76,13 @@ export function EnhancedLabTile({
         transform: 'translate(-50%, -50%) rotateY(calc(var(--tile-index) * var(--tile-angle) + var(--global-rotation))) translateZ(var(--radius))',
         position: 'absolute',
         top: '50%',
-        left: '50%'
-      }}
+        left: '50%',
+        // Set image URL as CSS variable for ghost back effect
+        '--tile-bg': `url("${imageSrc}")`,
+        '--panel-w': '120px',
+        '--panel-h': '200px'
+      } as React.CSSProperties}
+      data-ghost={effects.ghostBack ? 'on' : 'off'}
       onClick={handleClick}
       onKeyDown={handleKeyDown}
       tabIndex={0}
@@ -92,12 +102,13 @@ export function EnhancedLabTile({
             {!imageError ? (
               <>
                 <img
-                  src={project.imageUrl}
+                  src={imageSrc}
                   alt={project.title}
                   className={`w-full h-full object-cover transition-all duration-500 ${imageLoaded ? 'opacity-100 scale-100' : 'opacity-0 scale-110'} ${effects.scanLines ? 'scan-lines' : ''}`}
                   onLoad={handleImageLoad}
                   onError={handleImageError}
                   loading="lazy"
+                  decoding="async"
                 />
                 {!imageLoaded && (
                   <div className="absolute inset-0 bg-gray-800 animate-pulse flex items-center justify-center">

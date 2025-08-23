@@ -39,7 +39,6 @@ export interface CarouselControls {
 
 export interface EffectSettings {
   monitorStyle: boolean;
-  curvedPanels: boolean;
   scanLines: boolean;
   screenGlow: boolean;
   chromaticAberration: boolean;

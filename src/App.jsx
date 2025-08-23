@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import { EnhancedLabCarousel } from './components/lab/EnhancedLabCarousel'
 import { labProjects } from './data/labProjects'
+import ErrorBoundary from './components/ErrorBoundary'
 import './App.css'
 import './styles/lab.css'
 import './styles/effects.css'
@@ -10,20 +11,24 @@ function App() {
 
   const handleProjectSelect = (project) => {
     setSelectedProject(project)
-    console.log('Selected project:', project)
+    if (import.meta.env?.DEV) {
+      console.log('Selected project:', project)
+    }
   }
 
   return (
     <div className="min-h-screen bg-black text-white">
-      <EnhancedLabCarousel 
-        projects={labProjects}
-        onProjectSelect={handleProjectSelect}
-        config={{
-          autoRotate: true,
-          autoRotateSpeed: 180,
-          scrollSensitivity: 0.3
-        }}
-      />
+      <ErrorBoundary>
+        <EnhancedLabCarousel 
+          projects={labProjects}
+          onProjectSelect={handleProjectSelect}
+          config={{
+            autoRotate: true,
+            autoRotateSpeed: 180,
+            scrollSensitivity: 0.3
+          }}
+        />
+      </ErrorBoundary>
       
       {selectedProject && (
         <div className="fixed top-4 left-4 bg-gray-900/90 backdrop-blur-sm border border-gray-700 rounded-lg p-4 max-w-sm z-40">
