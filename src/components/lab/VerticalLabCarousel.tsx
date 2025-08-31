@@ -13,9 +13,9 @@ interface VerticalLabCarouselProps {
 // Vertical carousel configuration with 16:9 aspect ratio
 const defaultConfig: CarouselConfig = {
   panelCount: 12,
-  panelWidth: 240,  // Smaller cards to fit viewport
-  panelHeight: 135, // Maintain 16:9 aspect ratio
-  perspective: 800, // Adjusted perspective for smaller cards
+  panelWidth: 200,  // Base size (will scale up for center)
+  panelHeight: 112, // Maintain 16:9 aspect ratio
+  perspective: 800, // Adjusted perspective
   autoRotate: true,
   autoRotateSpeed: 20, // seconds per full rotation
 };
@@ -197,8 +197,26 @@ export function VerticalLabCarousel({ projects, config = {}, onProjectSelect }: 
             // Only show cards within a certain range (3 cards visible)
             const visibleRange = 45; // Degrees range for visibility
             const isVisible = Math.abs(normalizedAngle) <= visibleRange;
+            
+            // Calculate opacity - fade out at edges
             const opacity = isVisible ? 1 - (Math.abs(normalizedAngle) / visibleRange) * 0.5 : 0;
-            const scale = isVisible ? 1 - (Math.abs(normalizedAngle) / visibleRange) * 0.2 : 0.8;
+            
+            // Calculate scale - center card is bigger
+            let scale = 0.8;
+            if (isVisible) {
+              // Center card (close to 0 degrees) is largest
+              const distanceFromCenter = Math.abs(normalizedAngle);
+              if (distanceFromCenter < 15) {
+                // Center card: scale 1.2
+                scale = 1.2 - (distanceFromCenter / 15) * 0.2;
+              } else {
+                // Side cards: scale down from 1.0 to 0.8
+                scale = 1.0 - ((distanceFromCenter - 15) / 30) * 0.2;
+              }
+            }
+            
+            // Z-index for layering - center card on top
+            const zIndex = isVisible ? Math.round((1 - Math.abs(normalizedAngle) / visibleRange) * 10) : 0;
             
             return (
               <div
@@ -209,6 +227,7 @@ export function VerticalLabCarousel({ projects, config = {}, onProjectSelect }: 
                   transformStyle: 'preserve-3d',
                   opacity: opacity,
                   pointerEvents: isVisible ? 'auto' : 'none',
+                  zIndex: zIndex,
                 }}
                 onClick={() => onProjectSelect?.(project)}
               >
