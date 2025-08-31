@@ -168,6 +168,13 @@ export function VerticalLabCarousel({ projects, config = {}, onProjectSelect }: 
       className="relative w-full h-screen overflow-hidden bg-gradient-to-b from-gray-900 via-black to-gray-900"
       onMouseEnter={() => setIsPaused(true)}
       onMouseLeave={() => setIsPaused(false)}
+      style={{
+        '--fold-top-rotate': '25deg',
+        '--fold-center-rotate': '1deg',
+        '--fold-bottom-rotate': '-25deg',
+        '--card-margin-top': '12.5px',
+        '--card-scale': '1.25',
+      } as React.CSSProperties}
     >
       {/* Main carousel container */}
       <div 
@@ -201,33 +208,63 @@ export function VerticalLabCarousel({ projects, config = {}, onProjectSelect }: 
             // Calculate opacity - fade out at edges
             const opacity = isVisible ? 1 - (Math.abs(normalizedAngle) / visibleRange) * 0.5 : 0;
             
-            // Calculate scale - center card is bigger
-            let scale = 0.8;
+            // Create smooth curved rotation based on position
+            let cardPosition = 'hidden';
+            let foldRotation = 0;
+            let cardScale = 1;
+            let marginTop = 0;
+            
+            let additionalZ = 0;
+            
             if (isVisible) {
-              // Center card (close to 0 degrees) is largest
+              // Create a smooth curve using sine function for rotation
+              // This creates a more natural curved appearance
+              const curveIntensity = 45; // Increased for more curve
+              
+              // Use a sine curve for smooth transition
+              // normalizedAngle ranges from -45 to 45 for visible cards
+              // Convert to radians and apply sine for smooth curve
+              const radians = (normalizedAngle / 45) * (Math.PI / 2);
+              foldRotation = Math.sin(radians) * curveIntensity;
+              
+              // Add depth curve - cards at edges are pushed back
+              const depthCurve = Math.cos(radians) * 30; // Push edges back by up to 30px
+              additionalZ = -Math.abs(depthCurve) + 30; // Center card comes forward
+              
+              // Scale based on distance from center with smooth falloff
               const distanceFromCenter = Math.abs(normalizedAngle);
               if (distanceFromCenter < 15) {
-                // Center card: scale 1.2
-                scale = 1.2 - (distanceFromCenter / 15) * 0.2;
+                cardPosition = 'center';
+                // Smooth scale from 1.25 to 1.0
+                cardScale = 1.25 - (distanceFromCenter / 15) * 0.25;
+                marginTop = 12.5 * (1 - distanceFromCenter / 15);
               } else {
-                // Side cards: scale down from 1.0 to 0.8
-                scale = 1.0 - ((distanceFromCenter - 15) / 30) * 0.2;
+                cardPosition = normalizedAngle < 0 ? 'top' : 'bottom';
+                // Continue scaling down for outer cards
+                cardScale = 1.0 - ((distanceFromCenter - 15) / 30) * 0.2;
               }
             }
             
             // Z-index for layering - center card on top
-            const zIndex = isVisible ? Math.round((1 - Math.abs(normalizedAngle) / visibleRange) * 10) : 0;
+            const zIndex = cardPosition === 'center' ? 10 : cardPosition !== 'hidden' ? 5 : 0;
             
             return (
               <div
                 key={project.id}
-                className="absolute inset-0 cursor-pointer transition-all duration-300"
+                className="absolute inset-0 cursor-pointer transition-all duration-500"
                 style={{
-                  transform: `rotateX(${angle}deg) translateZ(${radius}px) scale(${scale})`,
+                  transform: `
+                    rotateX(${angle}deg) 
+                    translateZ(${radius + additionalZ}px) 
+                    rotateX(${foldRotation}deg) 
+                    scale(${cardScale})
+                    translateY(${marginTop}px)
+                  `,
                   transformStyle: 'preserve-3d',
-                  opacity: opacity,
+                  opacity: cardPosition !== 'hidden' ? 1 : 0,
                   pointerEvents: isVisible ? 'auto' : 'none',
                   zIndex: zIndex,
+                  transformOrigin: 'center center',
                 }}
                 onClick={() => onProjectSelect?.(project)}
               >
