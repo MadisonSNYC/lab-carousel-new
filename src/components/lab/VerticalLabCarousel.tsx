@@ -13,9 +13,9 @@ interface VerticalLabCarouselProps {
 // Vertical carousel configuration with 16:9 aspect ratio
 const defaultConfig: CarouselConfig = {
   panelCount: 12,
-  panelWidth: 320,  // Changed from 120 to 320 for 16:9
-  panelHeight: 180, // Changed from 200 to 180 for 16:9
-  perspective: 1800,
+  panelWidth: 240,  // Smaller cards to fit viewport
+  panelHeight: 135, // Maintain 16:9 aspect ratio
+  perspective: 800, // Adjusted perspective for smaller cards
   autoRotate: true,
   autoRotateSpeed: 20, // seconds per full rotation
 };
@@ -49,10 +49,13 @@ export function VerticalLabCarousel({ projects, config = {}, onProjectSelect }: 
   const [showDevPanel, setShowDevPanel] = useState(true); // Show by default for testing
   const [rotation, setRotation] = useState(0);
 
-  // Calculate carousel radius for vertical arrangement
+  // Calculate carousel radius for vertical arrangement with only 3 visible cards
   const calculateVerticalRadius = (panelHeight: number, panelCount: number): number => {
+    // We want 3 cards visible, so we need proper spacing
+    // Smaller radius for tighter arrangement
     const theta = (2 * Math.PI) / panelCount;
-    return panelHeight / (2 * Math.tan(theta / 2));
+    const baseRadius = panelHeight / (2 * Math.tan(theta / 2));
+    return baseRadius * 1.2; // Slightly increase radius to prevent overlap
   };
 
   const radius = calculateVerticalRadius(finalConfig.panelHeight, projects.length);
@@ -146,13 +149,25 @@ export function VerticalLabCarousel({ projects, config = {}, onProjectSelect }: 
             const anglePerPanel = 360 / projects.length;
             const angle = index * anglePerPanel;
             
+            // Calculate relative angle to determine visibility
+            const relativeAngle = ((angle - rotation) % 360 + 360) % 360;
+            const normalizedAngle = relativeAngle > 180 ? relativeAngle - 360 : relativeAngle;
+            
+            // Only show cards within a certain range (3 cards visible)
+            const visibleRange = 45; // Degrees range for visibility
+            const isVisible = Math.abs(normalizedAngle) <= visibleRange;
+            const opacity = isVisible ? 1 - (Math.abs(normalizedAngle) / visibleRange) * 0.5 : 0;
+            const scale = isVisible ? 1 - (Math.abs(normalizedAngle) / visibleRange) * 0.2 : 0.8;
+            
             return (
               <div
                 key={project.id}
                 className="absolute inset-0 cursor-pointer transition-all duration-300"
                 style={{
-                  transform: `rotateX(${angle}deg) translateZ(${radius}px)`,
+                  transform: `rotateX(${angle}deg) translateZ(${radius}px) scale(${scale})`,
                   transformStyle: 'preserve-3d',
+                  opacity: opacity,
+                  pointerEvents: isVisible ? 'auto' : 'none',
                 }}
                 onClick={() => onProjectSelect?.(project)}
               >
