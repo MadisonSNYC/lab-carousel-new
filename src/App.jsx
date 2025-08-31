@@ -1,5 +1,6 @@
 import { useState } from 'react'
 import { EnhancedLabCarousel } from './components/lab/EnhancedLabCarousel'
+import { VerticalLabCarousel } from './components/lab/VerticalLabCarousel'
 import { labProjects } from './data/labProjects'
 import ErrorBoundary from './components/ErrorBoundary'
 import './App.css'
@@ -8,6 +9,7 @@ import './styles/effects.css'
 
 function App() {
   const [selectedProject, setSelectedProject] = useState(null)
+  const [isVertical, setIsVertical] = useState(true) // Default to vertical
 
   const handleProjectSelect = (project) => {
     setSelectedProject(project)
@@ -18,16 +20,36 @@ function App() {
 
   return (
     <div className="min-h-screen bg-black text-white">
+      {/* Toggle Button */}
+      <button
+        onClick={() => setIsVertical(!isVertical)}
+        className="fixed top-4 right-4 z-50 px-4 py-2 bg-cyan-600 hover:bg-cyan-700 text-white rounded-lg shadow-lg transition-colors"
+      >
+        Switch to {isVertical ? 'Horizontal' : 'Vertical'} Carousel
+      </button>
+
       <ErrorBoundary>
-        <EnhancedLabCarousel 
-          projects={labProjects}
-          onProjectSelect={handleProjectSelect}
-          config={{
-            autoRotate: true,
-            autoRotateSpeed: 180,
-            scrollSensitivity: 0.3
-          }}
-        />
+        {isVertical ? (
+          <VerticalLabCarousel 
+            projects={labProjects}
+            onProjectSelect={handleProjectSelect}
+            config={{
+              autoRotate: true,
+              autoRotateSpeed: 180,
+              scrollSensitivity: 0.3
+            }}
+          />
+        ) : (
+          <EnhancedLabCarousel 
+            projects={labProjects}
+            onProjectSelect={handleProjectSelect}
+            config={{
+              autoRotate: true,
+              autoRotateSpeed: 180,
+              scrollSensitivity: 0.3
+            }}
+          />
+        )}
       </ErrorBoundary>
       
       {selectedProject && (

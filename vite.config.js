@@ -13,8 +13,8 @@ export default defineConfig({
   },
   server: {
     host: '0.0.0.0', // Allow all hosts
-    port: 8000,
-    strictPort: true,
+    port: 3000,
+    strictPort: false,
     allowedHosts: [
       'localhost',
       '127.0.0.1',
