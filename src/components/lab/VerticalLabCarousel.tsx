@@ -124,13 +124,16 @@ export function VerticalLabCarousel({ projects, config = {}, onProjectSelect }: 
       return;
     }
 
-    let startTime: number;
+    let lastTime: number = performance.now();
     const animate = (currentTime: number) => {
-      if (!startTime) startTime = currentTime;
-      const elapsed = (currentTime - startTime) / 1000;
+      const deltaTime = (currentTime - lastTime) / 1000; // Convert to seconds
+      lastTime = currentTime;
+      
       const rotationSpeed = 360 / finalConfig.autoRotateSpeed;
       
-      setRotation(elapsed * rotationSpeed);
+      // Add to target rotation instead of setting it directly
+      setTargetRotation(prev => prev + (deltaTime * rotationSpeed));
+      
       autoRotateRef.current = requestAnimationFrame(animate);
     };
 
@@ -186,9 +189,10 @@ export function VerticalLabCarousel({ projects, config = {}, onProjectSelect }: 
             const anglePerPanel = 360 / projects.length;
             const angle = index * anglePerPanel;
             
-            // Calculate relative angle to determine visibility
-            const relativeAngle = ((angle - rotation) % 360 + 360) % 360;
-            const normalizedAngle = relativeAngle > 180 ? relativeAngle - 360 : relativeAngle;
+            // Calculate relative angle to determine visibility without wrapping
+            const currentRotationMod = rotation % 360;
+            const relativeAngle = angle - currentRotationMod;
+            const normalizedAngle = ((relativeAngle + 180) % 360) - 180;
             
             // Only show cards within a certain range (3 cards visible)
             const visibleRange = 45; // Degrees range for visibility
@@ -211,17 +215,35 @@ export function VerticalLabCarousel({ projects, config = {}, onProjectSelect }: 
                 {/* 16:9 Card */}
                 <div 
                   className={`
-                    w-full h-full rounded-lg overflow-hidden
+                    w-full h-full rounded-lg overflow-hidden relative
                     ${effects.monitorStyle ? 'border-2 border-gray-700' : ''}
                     ${effects.screenGlow ? 'shadow-2xl shadow-cyan-500/20' : ''}
                   `}
                   style={{
-                    backgroundColor: project.color || '#1a1a1a',
-                    backgroundImage: project.thumbnail ? `url(${project.thumbnail})` : undefined,
-                    backgroundSize: 'cover',
-                    backgroundPosition: 'center',
+                    backgroundColor: '#0a0a0a',
                   }}
                 >
+                  {/* Video or Image Background */}
+                  {project.videoUrl ? (
+                    <video
+                      className="absolute inset-0 w-full h-full object-cover"
+                      src={project.videoUrl}
+                      autoPlay
+                      muted
+                      loop
+                      playsInline
+                    />
+                  ) : (
+                    <div 
+                      className="absolute inset-0 w-full h-full"
+                      style={{
+                        backgroundImage: `url(${project.imageUrl})`,
+                        backgroundSize: 'cover',
+                        backgroundPosition: 'center',
+                      }}
+                    />
+                  )}
+                  
                   {/* Content overlay */}
                   <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-black/40 to-transparent">
                     <div className="absolute bottom-0 left-0 right-0 p-4">

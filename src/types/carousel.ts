@@ -3,6 +3,7 @@ export interface LabProject {
   title: string;
   description: string;
   imageUrl: string;
+  videoUrl?: string;
   category: string;
   year: number;
   url?: string;

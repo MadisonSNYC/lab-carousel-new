@@ -8,3 +8,9 @@ dist
 .vscode
 coverage
 *.local
+
+# Videos (too large for git)
+public/videos/
+*.mp4
+*.mov
+*.webm
