@@ -49,18 +49,45 @@ export function VerticalLabCarousel({ projects, config = {}, onProjectSelect }: 
   const [showDevPanel, setShowDevPanel] = useState(true); // Show by default for testing
   const [rotation, setRotation] = useState(0);
   const [targetRotation, setTargetRotation] = useState(0);
+  const [hoveredCardId, setHoveredCardId] = useState<string | null>(null);
   const animationRef = useRef<number>();
+  const hoverTimeoutRef = useRef<NodeJS.Timeout>();
 
-  // Calculate carousel radius for vertical arrangement with only 3 visible cards
+  // Calculate carousel radius for proper circular arrangement
   const calculateVerticalRadius = (panelHeight: number, panelCount: number): number => {
-    // We want 3 cards visible, so we need proper spacing
-    // Smaller radius for tighter arrangement
+    // Calculate radius to fit cards in a circle with proper spacing
     const theta = (2 * Math.PI) / panelCount;
     const baseRadius = panelHeight / (2 * Math.tan(theta / 2));
-    return baseRadius * 1.2; // Slightly increase radius to prevent overlap
+    return baseRadius * 1.5; // Increase radius to prevent overlap
   };
 
   const radius = calculateVerticalRadius(finalConfig.panelHeight, projects.length);
+
+  // Handle hover with delay for center-ish cards
+  const handleCardHover = (projectId: string, normalizedAngle: number) => {
+    // Allow hover for cards reasonably close to center
+    if (Math.abs(normalizedAngle) > 15) return;
+    
+    // Clear any existing timeout
+    if (hoverTimeoutRef.current) {
+      clearTimeout(hoverTimeoutRef.current);
+    }
+    
+    // Set hover after 200ms delay
+    hoverTimeoutRef.current = setTimeout(() => {
+      setHoveredCardId(projectId);
+    }, 200);
+  };
+
+  const handleCardLeave = () => {
+    // Clear timeout if hovering off before delay
+    if (hoverTimeoutRef.current) {
+      clearTimeout(hoverTimeoutRef.current);
+    }
+    
+    // Immediately remove hover effect when leaving
+    setHoveredCardId(null);
+  };
 
   // Smooth animation loop - simple easing only
   useEffect(() => {
@@ -168,13 +195,6 @@ export function VerticalLabCarousel({ projects, config = {}, onProjectSelect }: 
       className="relative w-full h-screen overflow-hidden bg-gradient-to-b from-gray-900 via-black to-gray-900"
       onMouseEnter={() => setIsPaused(true)}
       onMouseLeave={() => setIsPaused(false)}
-      style={{
-        '--fold-top-rotate': '25deg',
-        '--fold-center-rotate': '1deg',
-        '--fold-bottom-rotate': '-25deg',
-        '--card-margin-top': '12.5px',
-        '--card-scale': '1.25',
-      } as React.CSSProperties}
     >
       {/* Main carousel container */}
       <div 
@@ -208,40 +228,54 @@ export function VerticalLabCarousel({ projects, config = {}, onProjectSelect }: 
             // Calculate opacity - fade out at edges
             const opacity = isVisible ? 1 - (Math.abs(normalizedAngle) / visibleRange) * 0.5 : 0;
             
-            // Create smooth curved rotation based on position
+            // Determine if THIS card is the center (closest to 0 degrees)
+            const distanceFromCenter = Math.abs(normalizedAngle);
+            let isCenterCard = false;
+            
+            // Only one card can be center - the one closest to 0 degrees
+            if (isVisible && distanceFromCenter <= 15) {
+              // Check if this is THE closest card to center
+              let isClosest = true;
+              for (let i = 0; i < projects.length; i++) {
+                if (i !== index) {
+                  const otherAngle = i * anglePerPanel;
+                  const otherRelative = otherAngle - currentRotationMod;
+                  const otherNormalized = ((otherRelative + 180) % 360) - 180;
+                  const otherDistance = Math.abs(otherNormalized);
+                  if (otherDistance < distanceFromCenter && otherDistance <= 15) {
+                    isClosest = false;
+                    break;
+                  }
+                }
+              }
+              isCenterCard = isClosest;
+            }
+            
+            // Clean positioning based on card location
             let cardPosition = 'hidden';
             let foldRotation = 0;
             let cardScale = 1;
-            let marginTop = 0;
-            
             let additionalZ = 0;
             
             if (isVisible) {
-              // Create a smooth curve using sine function for rotation
-              // This creates a more natural curved appearance
-              const curveIntensity = 45; // Increased for more curve
-              
-              // Use a sine curve for smooth transition
-              // normalizedAngle ranges from -45 to 45 for visible cards
-              // Convert to radians and apply sine for smooth curve
-              const radians = (normalizedAngle / 45) * (Math.PI / 2);
-              foldRotation = Math.sin(radians) * curveIntensity;
-              
-              // Add depth curve - cards at edges are pushed back
-              const depthCurve = Math.cos(radians) * 30; // Push edges back by up to 30px
-              additionalZ = -Math.abs(depthCurve) + 30; // Center card comes forward
-              
-              // Scale based on distance from center with smooth falloff
-              const distanceFromCenter = Math.abs(normalizedAngle);
-              if (distanceFromCenter < 15) {
+              if (isCenterCard) {
+                // Only ONE center card
                 cardPosition = 'center';
-                // Smooth scale from 1.25 to 1.0
-                cardScale = 1.25 - (distanceFromCenter / 15) * 0.25;
-                marginTop = 12.5 * (1 - distanceFromCenter / 15);
+                foldRotation = 0; // Perfectly flat
+                cardScale = 1.2; // Larger
+                additionalZ = 10; // Forward
+              } else if (normalizedAngle < 0) {
+                // Top card
+                cardPosition = 'top';
+                foldRotation = 15; // Tilt back
+                cardScale = 1.0;
+                additionalZ = 0;
               } else {
-                cardPosition = normalizedAngle < 0 ? 'top' : 'bottom';
-                // Continue scaling down for outer cards
-                cardScale = 1.0 - ((distanceFromCenter - 15) / 30) * 0.2;
+                // Bottom card
+                cardPosition = 'bottom';
+                foldRotation = -15; // Tilt forward
+                cardScale = 1.0;
+                additionalZ = 0;
               }
             }
             
@@ -251,29 +285,31 @@ export function VerticalLabCarousel({ projects, config = {}, onProjectSelect }: 
             return (
               <div
                 key={project.id}
-                className="absolute inset-0 cursor-pointer transition-all duration-500"
+                className={`absolute inset-0 transition-all ${cardPosition === 'center' ? 'cursor-pointer duration-300' : 'cursor-default duration-500'}`}
                 style={{
                   transform: `
-                    rotateX(${angle}deg) 
+                    rotateX(${angle + foldRotation}deg) 
                     translateZ(${radius + additionalZ}px) 
-                    rotateX(${foldRotation}deg) 
                     scale(${cardScale})
-                    translateY(${marginTop}px)
                   `,
                   transformStyle: 'preserve-3d',
                   opacity: cardPosition !== 'hidden' ? 1 : 0,
-                  pointerEvents: isVisible ? 'auto' : 'none',
+                  pointerEvents: isCenterCard ? 'auto' : 'none',
                   zIndex: zIndex,
                   transformOrigin: 'center center',
+                  transitionTimingFunction: 'cubic-bezier(0.4, 0, 0.2, 1)',
                 }}
-                onClick={() => onProjectSelect?.(project)}
+                onMouseEnter={() => isCenterCard && handleCardHover(project.id, normalizedAngle)}
+                onMouseLeave={() => isCenterCard && handleCardLeave()}
+                onClick={() => isCenterCard && onProjectSelect?.(project)}
               >
                 {/* 16:9 Card */}
                 <div 
                   className={`
-                    w-full h-full rounded-lg overflow-hidden relative
+                    w-full h-full rounded-lg overflow-hidden relative transition-shadow duration-300
                     ${effects.monitorStyle ? 'border-2 border-gray-700' : ''}
                     ${effects.screenGlow ? 'shadow-2xl shadow-cyan-500/20' : ''}
+                    ${isCenterCard && hoveredCardId === project.id ? 'shadow-lg shadow-cyan-400/20' : ''}
                   `}
                   style={{
                     backgroundColor: '#0a0a0a',
