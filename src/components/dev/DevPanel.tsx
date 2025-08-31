@@ -18,10 +18,18 @@ interface DevPanelProps {
   effects: EffectSettings;
   onEffectChange: (effects: EffectSettings) => void;
   onReset: () => void;
+  rotation?: number;
+  onRotationChange?: (rotation: number) => void;
 }
 
-export function DevPanel({ effects, onEffectChange, onReset }: DevPanelProps) {
+export function DevPanel({ effects, onEffectChange, onReset, rotation = 0, onRotationChange }: DevPanelProps) {
   const [isCollapsed, setIsCollapsed] = useState(false);
+  const [rotationInput, setRotationInput] = useState(rotation.toFixed(0));
+  
+  // Update input when rotation changes
+  React.useEffect(() => {
+    setRotationInput(rotation.toFixed(0));
+  }, [rotation]);
 
   const toggleEffect = (effectName: keyof EffectSettings) => {
     // Guard against unknown keys
@@ -85,17 +93,18 @@ export function DevPanel({ effects, onEffectChange, onReset }: DevPanelProps) {
 
   return (
     <div 
-      className="fixed top-0 right-0 h-full w-80 z-50 bg-gray-900/95 backdrop-blur-sm border-l border-gray-700/50 p-4 overflow-y-auto"
-      style={{
-        maxHeight: '100dvh',
-        overflowY: 'auto',
-        overscrollBehavior: 'contain',
-        WebkitOverflowScrolling: 'touch'
-      }}
-      data-scroll-allow="true"
-      onWheel={(e) => e.stopPropagation()} // Prevent scroll from affecting carousel
+      className="fixed top-0 right-0 h-screen w-80 z-50 bg-gray-900/95 backdrop-blur-sm border-l border-gray-700/50 flex flex-col"
+      data-dev-panel="true"
     >
-      <div className="h-full">
+      <div 
+        className="flex-1 overflow-y-auto overflow-x-hidden p-4"
+        style={{
+          maxHeight: '100vh',
+          overscrollBehavior: 'contain',
+          WebkitOverflowScrolling: 'touch',
+          scrollbarWidth: 'thin'
+        }}
+      >
         <div className="flex items-center justify-between mb-4">
           <h2 className="text-lg font-semibold text-cyan-400">🛠️ Effects Panel</h2>
           <div className="flex items-center gap-2">
@@ -115,6 +124,87 @@ export function DevPanel({ effects, onEffectChange, onReset }: DevPanelProps) {
         </div>
 
         <div className="space-y-6">
+          {/* Manual Rotation Controls */}
+          {onRotationChange && (
+            <div className="bg-gray-800/50 rounded-lg p-3 border border-gray-700/30">
+              <h3 className="text-sm font-medium text-gray-300 mb-3 border-b border-gray-600/30 pb-1">
+                Manual Rotation Control
+              </h3>
+              
+              {/* Rotation Slider */}
+              <div className="space-y-3">
+                <div>
+                  <label className="text-xs text-gray-400 block mb-1">
+                    Rotation: {rotation?.toFixed(1)}°
+                  </label>
+                  <input
+                    type="range"
+                    min="-360"
+                    max="360"
+                    step="1"
+                    value={rotation}
+                    onChange={(e) => onRotationChange(parseFloat(e.target.value))}
+                    className="w-full h-2 bg-gray-700 rounded-lg appearance-none cursor-pointer accent-cyan-500"
+                  />
+                </div>
+                
+                {/* Direct Input */}
+                <div className="flex gap-2 items-center">
+                  <input
+                    type="number"
+                    value={rotationInput}
+                    onChange={(e) => setRotationInput(e.target.value)}
+                    onBlur={() => {
+                      const val = parseFloat(rotationInput);
+                      if (!isNaN(val)) {
+                        onRotationChange(val);
+                      }
+                    }}
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter') {
+                        const val = parseFloat(rotationInput);
+                        if (!isNaN(val)) {
+                          onRotationChange(val);
+                        }
+                      }
+                    }}
+                    className="w-24 px-2 py-1 bg-gray-700 border border-gray-600 rounded text-white text-sm"
+                    placeholder="Degrees"
+                  />
+                  <span className="text-xs text-gray-400">degrees</span>
+                </div>
+                
+                {/* Preset Buttons */}
+                <div className="grid grid-cols-4 gap-1">
+                  <button
+                    onClick={() => onRotationChange(0)}
+                    className="px-2 py-1 bg-gray-700/50 hover:bg-gray-600/50 border border-gray-600/50 rounded text-xs text-gray-300"
+                  >
+                    Reset
+                  </button>
+                  <button
+                    onClick={() => onRotationChange((rotation || 0) - 30)}
+                    className="px-2 py-1 bg-gray-700/50 hover:bg-gray-600/50 border border-gray-600/50 rounded text-xs text-gray-300"
+                  >
+                    -30°
+                  </button>
+                  <button
+                    onClick={() => onRotationChange((rotation || 0) + 30)}
+                    className="px-2 py-1 bg-gray-700/50 hover:bg-gray-600/50 border border-gray-600/50 rounded text-xs text-gray-300"
+                  >
+                    +30°
+                  </button>
+                  <button
+                    onClick={() => onRotationChange((rotation || 0) + 360)}
+                    className="px-2 py-1 bg-gray-700/50 hover:bg-gray-600/50 border border-gray-600/50 rounded text-xs text-gray-300"
+                  >
+                    +360°
+                  </button>
+                </div>
+              </div>
+            </div>
+          )}
+
           {effectGroups.map((group) => (
             <div key={group.title} className="bg-gray-800/50 rounded-lg p-3 border border-gray-700/30">
               <h3 className="text-sm font-medium text-gray-300 mb-3 border-b border-gray-600/30 pb-1">

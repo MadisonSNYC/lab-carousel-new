@@ -93,8 +93,14 @@ export function VerticalLabCarousel({ projects, config = {}, onProjectSelect }: 
   const handleScroll = useCallback((e: WheelEvent) => {
     if (isUserInteracting) return;
     
+    // Check if the scroll event is coming from the dev panel
+    const target = e.target as HTMLElement;
+    if (target.closest('[data-dev-panel]')) {
+      return; // Don't handle scroll if it's from dev panel
+    }
+    
     e.preventDefault();
-    const delta = e.deltaY * 0.2; // Sensitivity for scroll
+    const delta = e.deltaY * 0.05; // Much less sensitive
     
     setTargetRotation(prev => prev + delta);
   }, [isUserInteracting]);
@@ -276,6 +282,8 @@ export function VerticalLabCarousel({ projects, config = {}, onProjectSelect }: 
           effects={effects}
           onEffectChange={setEffects}
           onReset={() => setEffects(defaultEffects)}
+          rotation={rotation}
+          onRotationChange={setTargetRotation}
         />
       )}
     </div>
