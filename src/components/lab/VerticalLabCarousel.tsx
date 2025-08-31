@@ -48,6 +48,8 @@ export function VerticalLabCarousel({ projects, config = {}, onProjectSelect }: 
   const [effects, setEffects] = useState<EffectSettings>(defaultEffects);
   const [showDevPanel, setShowDevPanel] = useState(true); // Show by default for testing
   const [rotation, setRotation] = useState(0);
+  const [targetRotation, setTargetRotation] = useState(0);
+  const animationRef = useRef<number>();
 
   // Calculate carousel radius for vertical arrangement with only 3 visible cards
   const calculateVerticalRadius = (panelHeight: number, panelCount: number): number => {
@@ -60,13 +62,41 @@ export function VerticalLabCarousel({ projects, config = {}, onProjectSelect }: 
 
   const radius = calculateVerticalRadius(finalConfig.panelHeight, projects.length);
 
-  // Handle scroll for vertical rotation
+  // Smooth animation loop - simple easing only
+  useEffect(() => {
+    const animate = () => {
+      setRotation(currentRotation => {
+        const diff = targetRotation - currentRotation;
+        const damping = 0.15; // Smooth easing factor
+        
+        // Apply easing
+        if (Math.abs(diff) > 0.01) {
+          return currentRotation + diff * damping;
+        }
+        
+        return targetRotation;
+      });
+      
+      animationRef.current = requestAnimationFrame(animate);
+    };
+    
+    animationRef.current = requestAnimationFrame(animate);
+    
+    return () => {
+      if (animationRef.current) {
+        cancelAnimationFrame(animationRef.current);
+      }
+    };
+  }, [targetRotation]);
+
+  // Handle scroll for vertical rotation - simple and smooth
   const handleScroll = useCallback((e: WheelEvent) => {
     if (isUserInteracting) return;
     
     e.preventDefault();
-    const delta = e.deltaY * 0.3; // Adjust sensitivity
-    setRotation(prev => prev + delta);
+    const delta = e.deltaY * 0.2; // Sensitivity for scroll
+    
+    setTargetRotation(prev => prev + delta);
   }, [isUserInteracting]);
 
   useEffect(() => {
@@ -107,13 +137,13 @@ export function VerticalLabCarousel({ projects, config = {}, onProjectSelect }: 
     };
   }, [reducedMotion, finalConfig.autoRotate, finalConfig.autoRotateSpeed, isUserInteracting, isPaused]);
 
-  // Keyboard navigation
+  // Keyboard navigation with smooth transitions
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
       if (e.key === 'ArrowUp') {
-        setRotation(prev => prev - 30);
+        setTargetRotation(prev => prev - 30);
       } else if (e.key === 'ArrowDown') {
-        setRotation(prev => prev + 30);
+        setTargetRotation(prev => prev + 30);
       } else if (e.key === 'd' || e.key === 'D') {
         setShowDevPanel(prev => !prev);
       }
@@ -137,12 +167,13 @@ export function VerticalLabCarousel({ projects, config = {}, onProjectSelect }: 
       >
         <div 
           ref={carouselRef}
-          className="relative preserve-3d transition-transform duration-300"
+          className="relative preserve-3d"
           style={{
             transform: `rotateX(${-rotation}deg)`,
             transformStyle: 'preserve-3d',
             width: `${finalConfig.panelWidth}px`,
             height: `${finalConfig.panelHeight}px`,
+            willChange: 'transform',
           }}
         >
           {projects.map((project, index) => {
